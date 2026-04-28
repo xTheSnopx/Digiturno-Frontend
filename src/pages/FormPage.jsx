@@ -44,8 +44,13 @@ export default function FormPage() {
     
     // Validaciones estrictas en tiempo real
     if (field === 'nombreEmpleado') {
-      // Remover cualquier número digitado
-      finalValue = value.replace(/[0-9]/g, '');
+      // Permitir solo letras y espacios (incluyendo acentos y ñ)
+      finalValue = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    }
+
+    if (field === 'cargoEmpleado') {
+      // Permitir letras, números y espacios
+      finalValue = value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '');
     }
 
     setForm(f => ({ ...f, [field]: finalValue }));

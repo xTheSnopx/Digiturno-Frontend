@@ -1,14 +1,13 @@
 import { motion } from 'framer-motion';
-import { Clock, User, Briefcase, Wrench, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, User, Briefcase, Wrench, CheckCircle, ShieldCheck } from 'lucide-react';
 
 const STATUS_CONFIG = {
   Esperando:  { label: 'En espera',    badge: 'badge-waiting',   icon: Clock },
   EnAtencion: { label: 'En atención',  badge: 'badge-active',    icon: Wrench },
   Resuelto:   { label: 'Resuelto',     badge: 'badge-resolved',  icon: CheckCircle },
-  Cancelado:  { label: 'Cancelado',    badge: 'badge-cancelled', icon: XCircle },
 };
 
-export default function TicketCard({ ticket, onAtender, onResolver, onCancelar, isAdmin = false }) {
+export default function TicketCard({ ticket, onAtender, onResolver, isAdmin = false }) {
   const cfg = STATUS_CONFIG[ticket.estado] ?? STATUS_CONFIG.Esperando;
   const IconStatus = cfg.icon;
 
@@ -42,7 +41,7 @@ export default function TicketCard({ ticket, onAtender, onResolver, onCancelar, 
         </div>
       </div>
 
-      {/* Info */}
+      {/* Employee Info */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', color: 'var(--text-primary)' }}>
           <User size={13} color="var(--text-dim)" />
@@ -58,6 +57,23 @@ export default function TicketCard({ ticket, onAtender, onResolver, onCancelar, 
           </div>
         )}
       </div>
+
+      {/* Técnico responsable */}
+      {ticket.nombreTecnico && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          fontSize: '0.78rem', fontWeight: 600,
+          color: ticket.estado === 'Resuelto' ? 'var(--success)' : 'var(--info)',
+          background: ticket.estado === 'Resuelto' ? 'rgba(34,197,94,0.08)' : 'rgba(56,189,248,0.08)',
+          border: `1px solid ${ticket.estado === 'Resuelto' ? 'rgba(34,197,94,0.25)' : 'rgba(56,189,248,0.25)'}`,
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.3rem 0.6rem',
+        }}>
+          <ShieldCheck size={13} />
+          {ticket.estado === 'Resuelto' ? 'Resuelto por' : 'Atendido por'}:&nbsp;
+          <span style={{ fontWeight: 700 }}>{ticket.nombreTecnico}</span>
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -77,11 +93,6 @@ export default function TicketCard({ ticket, onAtender, onResolver, onCancelar, 
             {(ticket.estado === 'Esperando' || ticket.estado === 'EnAtencion') && (
               <button className="btn btn-success btn-sm" onClick={() => onResolver(ticket.id)}>
                 <CheckCircle size={12} /> Resolver
-              </button>
-            )}
-            {ticket.estado !== 'Resuelto' && ticket.estado !== 'Cancelado' && (
-              <button className="btn btn-danger btn-sm" onClick={() => onCancelar(ticket.id)}>
-                <XCircle size={12} /> Cancelar
               </button>
             )}
           </div>

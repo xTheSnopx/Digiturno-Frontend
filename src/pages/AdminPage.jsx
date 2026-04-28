@@ -1,12 +1,92 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, LayoutDashboard, Clock, Wrench, CheckCircle, XCircle, Users } from 'lucide-react';
+import { RefreshCw, LayoutDashboard, Clock, Wrench, CheckCircle, Users, ShieldCheck, X } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import TicketCard from '../components/TicketCard';
-import { getTicketsHoy, getStats, atenderTicket, resolverTicket, cancelarTicket } from '../services/api';
+import { getTicketsHoy, getStats, atenderTicket, resolverTicket } from '../services/api';
 
-const POLL_INTERVAL = 5000; // 5 seconds
+const POLL_INTERVAL = 5000;
 
+// ── Mini modal para pedir nombre del técnico ──────────────────────────────────
+function TecnicoModal({ action, onConfirm, onCancel }) {
+  const [nombre, setNombre] = useState('');
+  const isAtender = action === 'atender';
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '1rem',
+    }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        className="card"
+        style={{ width: '100%', maxWidth: 380, gap: '1rem', display: 'flex', flexDirection: 'column' }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ShieldCheck size={18} color={isAtender ? 'var(--accent-sky)' : 'var(--success)'} />
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>
+              {isAtender ? 'Tomar ticket' : 'Resolver ticket'}
+            </h3>
+          </div>
+          <button
+            onClick={onCancel}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: '0.25rem' }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+          {isAtender
+            ? 'Indica tu nombre para registrar que estás atendiendo este ticket.'
+            : 'Indica tu nombre para marcar este ticket como resuelto.'}
+        </p>
+
+        {/* Input */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Tu nombre
+          </label>
+          <input
+            autoFocus
+            type="text"
+            value={nombre}
+            onChange={e => setNombre(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && nombre.trim() && onConfirm(nombre.trim())}
+            placeholder="Ej: Carlos Mejía"
+            style={{
+              background: 'var(--bg-input)', border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.8rem',
+              color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none',
+              width: '100%', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline btn-sm" onClick={onCancel}>Cancelar</button>
+          <button
+            className={`btn btn-sm ${isAtender ? 'btn-primary' : 'btn-success'}`}
+            disabled={!nombre.trim()}
+            onClick={() => onConfirm(nombre.trim())}
+          >
+            {isAtender ? <><Wrench size={13} /> Atender</> : <><CheckCircle size={13} /> Resolver</>}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Stat Badge ────────────────────────────────────────────────────────────────
 function StatBadge({ icon: Icon, label, value, color }) {
   return (
     <div className="card" style={{ textAlign: 'center', padding: '1rem' }}>
@@ -24,12 +104,16 @@ function StatBadge({ icon: Icon, label, value, color }) {
   );
 }
 
+// ── AdminPage ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [filter, setFilter] = useState('todos'); // todos | Esperando | EnAtencion | Resuelto
+  const [filter, setFilter] = useState('todos');
+
+  // Modal state
+  const [modal, setModal] = useState(null); // { action: 'atender'|'resolver', ticketId }
 
   const fetchData = useCallback(async () => {
     try {
@@ -44,27 +128,36 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Initial load + polling
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  async function handleAtender(id) {
-    try { await atenderTicket(id); fetchData(); } catch { /* handled silently */ }
+  // Abrir modal al hacer click en acción
+  function handleAtenderClick(id) {
+    setModal({ action: 'atender', ticketId: id });
   }
-  async function handleResolver(id) {
-    try { await resolverTicket(id); fetchData(); } catch { /* handled silently */ }
-  }
-  async function handleCancelar(id) {
-    if (!confirm('¿Cancelar este ticket?')) return;
-    try { await cancelarTicket(id); fetchData(); } catch { /* handled silently */ }
+  function handleResolverClick(id) {
+    setModal({ action: 'resolver', ticketId: id });
   }
 
-  const filteredTickets = filter === 'todos'
-    ? tickets
-    : tickets.filter(t => t.estado === filter);
+  // Confirmar acción con nombre del técnico
+  async function handleModalConfirm(nombreTecnico) {
+    if (!modal) return;
+    try {
+      if (modal.action === 'atender') {
+        await atenderTicket(modal.ticketId, nombreTecnico);
+      } else {
+        await resolverTicket(modal.ticketId, nombreTecnico);
+      }
+      fetchData();
+    } catch (err) {
+      console.error('Error al actualizar ticket:', err);
+    } finally {
+      setModal(null);
+    }
+  }
 
   const FILTERS = [
     { key: 'todos',      label: 'Todos',        color: 'var(--text-muted)' },
@@ -73,9 +166,25 @@ export default function AdminPage() {
     { key: 'Resuelto',   label: 'Resueltos',    color: 'var(--success)' },
   ];
 
+  const filteredTickets = filter === 'todos'
+    ? tickets
+    : tickets.filter(t => t.estado === filter);
+
   return (
     <div className="page">
       <Navbar />
+
+      {/* Modal de técnico */}
+      <AnimatePresence>
+        {modal && (
+          <TecnicoModal
+            action={modal.action}
+            onConfirm={handleModalConfirm}
+            onCancel={() => setModal(null)}
+          />
+        )}
+      </AnimatePresence>
+
       <main className="container" style={{ flex: 1, paddingTop: '2rem' }}>
 
         {/* Header */}
@@ -113,7 +222,6 @@ export default function AdminPage() {
             <StatBadge icon={Clock}       label="En espera"    value={stats.esperando}  color="var(--warning)" />
             <StatBadge icon={Wrench}      label="En atención"  value={stats.enAtencion} color="var(--info)" />
             <StatBadge icon={CheckCircle} label="Resueltos"    value={stats.resueltos}  color="var(--success)" />
-            <StatBadge icon={XCircle}     label="Cancelados"   value={stats.cancelados} color="var(--danger)" />
           </div>
         )}
 
@@ -173,9 +281,8 @@ export default function AdminPage() {
                   key={ticket.id}
                   ticket={ticket}
                   isAdmin
-                  onAtender={handleAtender}
-                  onResolver={handleResolver}
-                  onCancelar={handleCancelar}
+                  onAtender={handleAtenderClick}
+                  onResolver={handleResolverClick}
                 />
               ))}
             </AnimatePresence>
